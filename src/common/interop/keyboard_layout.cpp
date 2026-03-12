@@ -238,6 +238,7 @@ void LayoutMap::LayoutMapImpl::UpdateLayout()
     keyboardLayoutMap[VK_OEM_CLEAR] = L"Clear";
     keyboardLayoutMap[0xFF] = L"Undefined";
     keyboardLayoutMap[CommonSharedConstants::VK_WIN_BOTH] = L"Win";
+    keyboardLayoutMap[CommonSharedConstants::VK_COPILOT] = L"Copilot key";
     keyboardLayoutMap[VK_KANA] = L"IME Kana";
     keyboardLayoutMap[VK_HANGEUL] = L"IME Hangeul";
     keyboardLayoutMap[VK_HANGUL] = L"IME Hangul";
@@ -277,6 +278,7 @@ std::vector<DWORD> LayoutMap::LayoutMapImpl::GetKeyCodeList(const bool isShortcu
         keyCodes.push_back(VK_MENU);
         keyCodes.push_back(VK_LMENU);
         keyCodes.push_back(VK_RMENU);
+        keyCodes.push_back(CommonSharedConstants::VK_COPILOT);
         keyCodes.push_back(VK_CONTROL);
         keyCodes.push_back(VK_LCONTROL);
         keyCodes.push_back(VK_RCONTROL);

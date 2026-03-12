@@ -10,6 +10,9 @@ namespace CommonSharedConstants
     // Fake key code to represent VK_WIN.
     inline const DWORD VK_WIN_BOTH = 0x104;
 
+    // Fake key code to represent Copilot key (Win+Shift+F23).
+    inline const DWORD VK_COPILOT = 0x105;
+
     const wchar_t APPDATA_PATH[] = L"Microsoft\\PowerToys";
 
     // Path to the event used by runner to terminate Settings app
