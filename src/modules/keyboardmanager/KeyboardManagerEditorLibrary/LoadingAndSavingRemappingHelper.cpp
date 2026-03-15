@@ -61,6 +61,21 @@ namespace LoadingAndSavingRemappingHelper
             DWORD ogKey = std::get<DWORD>(remappings[i].mapping[0]);
             KeyShortcutTextUnion newKey = remappings[i].mapping[1];
 
+            Logger::trace(L"GetOrphanedKeys: Row {}: ogKey=0x{:X}, newKey.index()={}", i, ogKey, newKey.index());
+            if (newKey.index() == 0)
+            {
+                Logger::trace(L"  newKey is DWORD: 0x{:X}", std::get<DWORD>(newKey));
+            }
+            else if (newKey.index() == 1)
+            {
+                auto shortcut = std::get<Shortcut>(newKey);
+                Logger::trace(L"  newKey is Shortcut: valid={}", EditorHelpers::IsValidShortcut(shortcut));
+            }
+            else if (newKey.index() == 2)
+            {
+                Logger::trace(L"  newKey is Text: length={}", std::get<std::wstring>(newKey).length());
+            }
+
             const bool hasValidKeyRemapping = newKey.index() == 0 && std::get<DWORD>(newKey) != 0;
             const bool hasValidShortcutRemapping = newKey.index() == 1 && EditorHelpers::IsValidShortcut(std::get<Shortcut>(newKey));
             const bool hasValidTextRemapping = newKey.index() == 2 && !std::get<std::wstring>(newKey).empty();
@@ -74,6 +89,11 @@ namespace LoadingAndSavingRemappingHelper
                     newKeys.insert(std::get<DWORD>(newKey));
                 }
             }
+            else
+            {
+                Logger::trace(L"  -> Validation failed: ogKey={}, hasValidKeyRemap={}, hasValidShortcutRemap={}, hasValidTextRemap={}",
+                              ogKey != NULL, hasValidKeyRemapping, hasValidShortcutRemapping, hasValidTextRemapping);
+            }
         }
 
         for (auto& k : newKeys)
@@ -81,6 +101,7 @@ namespace LoadingAndSavingRemappingHelper
             ogKeys.erase(k);
         }
 
+        Logger::trace(L"GetOrphanedKeys: Found {} orphaned keys", ogKeys.size());
         return std::vector(ogKeys.begin(), ogKeys.end());
     }
 

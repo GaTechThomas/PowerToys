@@ -137,6 +137,9 @@ void KeyboardManager::StartLowlevelKeyboardHook()
 
     if (!hookHandle)
     {
+        // Cleanup any stuck keyboard state from previous crash
+        state.CleanupCopilotKeyStateOnStartup();
+
         hookHandle = SetWindowsHookEx(WH_KEYBOARD_LL, HookProc, GetModuleHandle(NULL), NULL);
         hookHandleCopy = hookHandle;
         if (!hookHandle)
@@ -153,6 +156,10 @@ void KeyboardManager::StopLowlevelKeyboardHook()
 {
     if (hookHandle)
     {
+        // Cleanup keyboard state before stopping hook
+        Logger::info(L"Cleaning up Copilot key state before stopping keyboard hook");
+        state.CleanupCopilotKeyStateOnStartup();
+
         UnhookWindowsHookEx(hookHandle);
         hookHandle = nullptr;
     }

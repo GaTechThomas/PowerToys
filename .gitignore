@@ -360,3 +360,4 @@ src/common/Telemetry/*.etl
 # PowerToysInstaller Build Temp Files
 installer/*/*.wxs.bk
 /src/modules/awake/.claude
+/GithubCopilotConversation20260308

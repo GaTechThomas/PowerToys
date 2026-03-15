@@ -12,6 +12,26 @@ Concise guidance for AI contributions. For complete details, see [AGENTS.md](../
 - Add tests when changing behavior
 - Keep hot paths quiet (no logging in hooks/tight loops)
 
+## Copilot Key Remap Behavior
+
+- Support long holds of the Copilot key without timing out or sticking modifiers when selecting text.
+- Do not inject VK_RSHIFT key-up because RShift is not part of the Copilot hardware sequence (Win+Shift+F23).
+- Validation scenarios for Copilot key remap:
+  - `lshift + lctrl + rightarrow` -> select word
+  - `lshift + copilot + rightarrow` -> select word
+  - `rshift + lctrl + rightarrow` -> select word
+  - `rshift + copilot + rightarrow` -> select word
+  - `lctrl + lshift + rightarrow` -> select word
+  - `copilot + lshift + rightarrow` -> select word
+  - `lctrl + rshift + rightarrow` -> select word
+  - `copilot + rshift + rightarrow` -> select word
+  - `a` -> `a`
+  - `lshift + a` -> `A`
+  - `rshift + a` -> `A`
+  - `copilot + rightarrow` -> move cursor one word right
+  - `lctrl + rightarrow` -> move cursor one word right
+- After each suggested change and after each code change, explicitly compare behavior against the full provided validation scenario list.
+
 ## Style Enforcement
 
 - C#: `src/.editorconfig`, StyleCop.Analyzers

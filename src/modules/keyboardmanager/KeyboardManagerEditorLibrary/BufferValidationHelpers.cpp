@@ -82,7 +82,7 @@ namespace BufferValidationHelpers
     }
 
     // Function to validate an element of the shortcut remap buffer when the selection has changed
-    std::pair<ShortcutErrorType, DropDownAction> ValidateShortcutBufferElement(int rowIndex, int colIndex, uint32_t dropDownIndex, const std::vector<int32_t>& selectedCodes, std::wstring appName, bool isHybridControl, const RemapBuffer& remapBuffer, bool dropDownFound)
+    std::pair<ShortcutErrorType, DropDownAction> ValidateShortcutBufferElement(int rowIndex, int colIndex, uint32_t dropDownIndex, const std::vector<int32_t>& selectedCodes, std::wstring appName, bool isHybridControl, const RemapBuffer& remapBuffer, bool dropDownFound, bool isSingleKeyWindow)
     {
         BufferValidationHelpers::DropDownAction dropDownAction = BufferValidationHelpers::DropDownAction::NoAction;
         ShortcutErrorType errorType = ShortcutErrorType::NoError;
@@ -101,7 +101,8 @@ namespace BufferValidationHelpers
             {
                 // If it is the last drop down
                 // If last drop down and a modifier is selected: add a new drop down (max drop down count should be enforced)
-                if (Helpers::IsModifierKey(selectedKeyCode) && dropDownCount < EditorConstants::MaxShortcutSize)
+                // Exception: In single key remap window, don't add dropdown for modifier keys - allow them as single key targets
+                if (Helpers::IsModifierKey(selectedKeyCode) && dropDownCount < EditorConstants::MaxShortcutSize && !isSingleKeyWindow)
                 {
                     // If it matched any of the previous modifiers then reset that drop down
                     if (EditorHelpers::CheckRepeatedModifier(selectedCodes, selectedKeyCode))

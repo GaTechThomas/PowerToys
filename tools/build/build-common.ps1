@@ -144,27 +144,30 @@ function BuildProjectsInDirectory {
 
 function Get-DefaultPlatform {
     <#
-    Returns a default target platform string based on the host machine (x64, arm64, x86).
+    Returns a default target platform string based on the host machine (x64 or arm64).
+    PowerToys only supports x64 and ARM64 platforms.
     #>
     try {
+        # Check PROCESSOR_ARCHITEW6432 first - this is set when running 32-bit process on 64-bit Windows
+        # This is critical because 32-bit PowerShell reports PROCESSOR_ARCHITECTURE=x86 even on x64 systems
+        if ($env:PROCESSOR_ARCHITEW6432) {
+            $envArch = $env:PROCESSOR_ARCHITEW6432.ToLower()
+            if ($envArch -eq 'amd64') { return 'x64' }
+            if ($envArch -match 'arm64') { return 'arm64' }
+        }
+
+        # Check PROCESSOR_ARCHITECTURE (native process architecture)
         $envArch = $env:PROCESSOR_ARCHITECTURE
         if ($envArch) { $envArch = $envArch.ToLower() }
         if ($envArch -eq 'amd64' -or $envArch -eq 'x86_64') { return 'x64' }
         if ($envArch -match 'arm64') { return 'arm64' }
-        if ($envArch -eq 'x86') { return 'x86' }
 
-        if ($env:PROCESSOR_ARCHITEW6432) {
-            $envArch2 = $env:PROCESSOR_ARCHITEW6432.ToLower()
-            if ($envArch2 -eq 'amd64') { return 'x64' }
-            if ($envArch2 -match 'arm64') { return 'arm64' }
-        }
-
+        # Try .NET RuntimeInformation as fallback
         try {
             $osArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
             switch ($osArch.ToString().ToLower()) {
                 'x64' { return 'x64' }
                 'arm64' { return 'arm64' }
-                'x86' { return 'x86' }
             }
         } catch {
             # ignore - RuntimeInformation may not be available
@@ -173,6 +176,7 @@ function Get-DefaultPlatform {
         # ignore any errors and fall back
     }
 
+    # Default to x64 (PowerToys does not support x86)
     return 'x64'
 }
 

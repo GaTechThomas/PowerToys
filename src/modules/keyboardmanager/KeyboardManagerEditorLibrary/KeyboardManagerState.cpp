@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "KeyboardManagerState.h"
 
+#include <common/interop/shared_constants.h>
 #include <keyboardmanager/common/Helpers.h>
 
 #include "EditorHelpers.h"
@@ -10,7 +11,8 @@ using namespace KBMEditor;
 
 // Constructor
 KeyboardManagerState::KeyboardManagerState() :
-    uiState(KeyboardManagerUIState::Deactivated), currentUIWindow(nullptr), currentShortcutUI1(nullptr), currentShortcutUI2(nullptr), currentSingleKeyUI(nullptr), detectedRemapKey(NULL)
+    uiState(KeyboardManagerUIState::Deactivated), currentUIWindow(nullptr), currentShortcutUI1(nullptr), currentShortcutUI2(nullptr), currentSingleKeyUI(nullptr), detectedRemapKey(NULL),
+    copilotState(CopilotKeyState::Idle), copilotWinSeen(false), copilotShiftSeen(false), copilotF23Seen(false)
 {
 }
 
@@ -93,6 +95,9 @@ void KeyboardManagerState::ResetUIState()
     std::unique_lock<std::mutex> detectedRemapKey_lock(detectedRemapKey_mutex);
     detectedRemapKey = NULL;
     detectedRemapKey_lock.unlock();
+
+    // Reset Copilot key state machine
+    ResetCopilotKeyState();
 }
 
 // Function to set the textblock of the detect shortcut UI so that it can be accessed by the hook
@@ -266,16 +271,179 @@ DWORD KeyboardManagerState::GetDetectedSingleRemapKey()
     return detectedRemapKey;
 }
 
+// Helper method to check if a key event is part of the Copilot sequence
+// Returns true if this is a Copilot-generated key (GetAsyncKeyState says not pressed)
+bool KeyboardManagerState::IsCopilotSequenceKey(DWORD vkCode, bool isKeyDown)
+{
+    // Only check on key down events for Win, Shift, or F23
+    if (!isKeyDown || (vkCode != VK_LWIN && vkCode != VK_LSHIFT && vkCode != VK_F23))
+    {
+        return false;
+    }
+
+    // Check if GetAsyncKeyState reports the key as pressed
+    SHORT keyState = GetAsyncKeyState(vkCode);
+    bool isPhysicallyPressed = (keyState & 0x8000) != 0;
+
+    // If GetAsyncKeyState says NOT pressed, it's from the Copilot sequence
+    return !isPhysicallyPressed;
+}
+
+// Update the Copilot key state machine based on key events
+void KeyboardManagerState::UpdateCopilotKeyState(DWORD vkCode, bool isKeyDown)
+{
+    std::lock_guard<std::mutex> lock(copilotState_mutex);
+
+    if (isKeyDown)
+    {
+        // Key down event
+        if (IsCopilotSequenceKey(vkCode, true))
+        {
+            // This is a Copilot-generated key event
+            Logger::trace(L"Copilot sequence key detected: vkCode={}", vkCode);
+
+            if (vkCode == VK_LWIN)
+            {
+                copilotWinSeen = true;
+                if (copilotState == CopilotKeyState::Idle)
+                {
+                    copilotState = CopilotKeyState::Detecting;
+                }
+            }
+            else if (vkCode == VK_LSHIFT)
+            {
+                copilotShiftSeen = true;
+                if (copilotState == CopilotKeyState::Idle)
+                {
+                    copilotState = CopilotKeyState::Detecting;
+                }
+            }
+            else if (vkCode == VK_F23)
+            {
+                copilotF23Seen = true;
+
+                // If we've seen all 3 keys, Copilot is confirmed active
+                if (copilotWinSeen && copilotShiftSeen)
+                {
+                    copilotState = CopilotKeyState::Active;
+                    Logger::trace(L"Copilot key ACTIVE");
+                }
+            }
+        }
+        else
+        {
+            // Physical key press detected
+            if (copilotState == CopilotKeyState::Idle)
+            {
+                // Not in Copilot sequence, physical Win/Shift key
+                Logger::trace(L"Physical key detected during Idle: vkCode={}", vkCode);
+            }
+            // If Copilot is Active and we see a physical key, this is a chord!
+            // Don't reset state - allow the chord to be detected
+        }
+    }
+    else
+    {
+        // Key up event
+        if (vkCode == VK_F23 && copilotState == CopilotKeyState::Active)
+        {
+            // F23 released, transition to Releasing state
+            copilotState = CopilotKeyState::Releasing;
+            Logger::trace(L"Copilot key RELEASING (F23 up)");
+        }
+        else if ((vkCode == VK_LWIN || vkCode == VK_LSHIFT) && copilotState == CopilotKeyState::Releasing)
+        {
+            // Win or Shift released during release sequence
+            if (vkCode == VK_LWIN)
+            {
+                copilotWinSeen = false;
+            }
+            else if (vkCode == VK_LSHIFT)
+            {
+                copilotShiftSeen = false;
+            }
+
+            // If both Win and Shift are released, complete the sequence
+            if (!copilotWinSeen && !copilotShiftSeen)
+            {
+                copilotState = CopilotKeyState::Idle;
+                copilotF23Seen = false;
+                Logger::trace(L"Copilot key sequence complete (back to Idle)");
+            }
+        }
+        else if (vkCode == VK_F23 && (copilotState == CopilotKeyState::Detecting || copilotState == CopilotKeyState::Idle))
+        {
+            // F23 released before full sequence - reset
+            ResetCopilotKeyState();
+        }
+    }
+}
+
+// Reset the Copilot key state machine
+void KeyboardManagerState::ResetCopilotKeyState()
+{
+    std::lock_guard<std::mutex> lock(copilotState_mutex);
+    copilotState = CopilotKeyState::Idle;
+    copilotWinSeen = false;
+    copilotShiftSeen = false;
+    copilotF23Seen = false;
+    Logger::trace(L"Copilot state machine reset");
+}
+
+// Check if Copilot key is currently active
+bool KeyboardManagerState::IsCopilotKeyActive()
+{
+    std::lock_guard<std::mutex> lock(copilotState_mutex);
+    return copilotState == CopilotKeyState::Active;
+}
+
 void KeyboardManagerState::SelectDetectedRemapKey(DWORD key)
 {
     std::lock_guard<std::mutex> guard(detectedRemapKey_mutex);
-    detectedRemapKey = key;
+
+    // Check if Copilot key is active using state machine
+    if (key == VK_F23 && IsCopilotKeyActive())
+    {
+        // Treat this as the Copilot key
+        detectedRemapKey = CommonSharedConstants::VK_COPILOT;
+        Logger::trace(L"SelectDetectedRemapKey: Detected Copilot key");
+    }
+    else if (IsCopilotKeyActive() && (key == VK_LWIN || key == VK_LSHIFT))
+    {
+        // Ignore Win/Shift events that are part of the Copilot sequence
+        Logger::trace(L"SelectDetectedRemapKey: Ignoring Copilot sequence key vkCode={}", key);
+        return;
+    }
+    else
+    {
+        detectedRemapKey = key;
+    }
+
     UpdateDetectSingleKeyRemapUI();
     return;
 }
 
 void KeyboardManagerState::SelectDetectedShortcut(DWORD key)
 {
+    // Check if Copilot key is active using state machine
+    if (key == VK_F23 && IsCopilotKeyActive())
+    {
+        // Treat this as the Copilot key - set as action key, clear modifiers
+        std::unique_lock<std::mutex> lock(detectedShortcut_mutex);
+        detectedShortcut = Shortcut(CommonSharedConstants::VK_COPILOT);
+        lock.unlock();
+        UpdateDetectShortcutUI();
+        Logger::trace(L"SelectDetectedShortcut: Detected Copilot key");
+        return;
+    }
+
+    // Ignore Win/Shift events that are part of the Copilot sequence
+    if (IsCopilotKeyActive() && (key == VK_LWIN || key == VK_LSHIFT))
+    {
+        Logger::trace(L"SelectDetectedShortcut: Ignoring Copilot sequence key vkCode={}", key);
+        return;
+    }
+
     // Set the new key and store if a change occurred
     bool updateUI = false;
 
@@ -356,8 +524,13 @@ Helpers::KeyboardHookDecision KeyboardManagerState::DetectSingleRemapKeyUIBacken
         {
             return Helpers::KeyboardHookDecision::Suppress;
         }
+
+        // Update Copilot key state machine
+        bool isKeyDown = (data->wParam == WM_KEYDOWN || data->wParam == WM_SYSKEYDOWN);
+        UpdateCopilotKeyState(data->lParam->vkCode, isKeyDown);
+
         // detect the key if it is pressed down
-        if (data->wParam == WM_KEYDOWN || data->wParam == WM_SYSKEYDOWN)
+        if (isKeyDown)
         {
             SelectDetectedRemapKey(data->lParam->vkCode);
         }
@@ -386,13 +559,18 @@ Helpers::KeyboardHookDecision KeyboardManagerState::DetectShortcutUIBackend(Lowl
             return Helpers::KeyboardHookDecision::Suppress;
         }
 
+        // Update Copilot key state machine
+        bool isKeyDown = (data->wParam == WM_KEYDOWN || data->wParam == WM_SYSKEYDOWN);
+        bool isKeyUp = (data->wParam == WM_KEYUP || data->wParam == WM_SYSKEYUP);
+        UpdateCopilotKeyState(data->lParam->vkCode, isKeyDown);
+
         // Add the key if it is pressed down
-        if (data->wParam == WM_KEYDOWN || data->wParam == WM_SYSKEYDOWN)
+        if (isKeyDown)
         {
             SelectDetectedShortcut(data->lParam->vkCode);
         }
         // Remove the key if it has been released
-        else if (data->wParam == WM_KEYUP || data->wParam == WM_SYSKEYUP)
+        else if (isKeyUp)
         {
             ResetDetectedShortcutKey(data->lParam->vkCode);
         }
@@ -409,6 +587,9 @@ Helpers::KeyboardHookDecision KeyboardManagerState::DetectShortcutUIBackend(Lowl
         {
             detectedShortcut.Reset();
         }
+
+        // Also reset Copilot state machine when UI is not active
+        ResetCopilotKeyState();
     }
 
     // If the settings window is up, shortcut remappings should not be applied, but we should not suppress events in the hook

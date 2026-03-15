@@ -81,6 +81,28 @@ namespace KBMEditor
         std::map<DWORD, std::unique_ptr<KeyDelay>> keyDelays;
         std::mutex keyDelays_mutex;
 
+        // Copilot key sequence state tracking
+        enum class CopilotKeyState
+        {
+            Idle,              // No Copilot sequence active
+            Detecting,         // Saw 1-2 keys from Copilot sequence
+            Active,            // All 3 keys confirmed (Win+Shift+F23)
+            Releasing          // F23 released, waiting for Win+Shift release
+        };
+
+        CopilotKeyState copilotState;
+        std::mutex copilotState_mutex;
+
+        // Track which keys we've seen in the Copilot sequence
+        bool copilotWinSeen;
+        bool copilotShiftSeen;
+        bool copilotF23Seen;
+
+        // Helper methods for Copilot key state machine
+        bool IsCopilotSequenceKey(DWORD vkCode, bool isKeyDown);
+        void UpdateCopilotKeyState(DWORD vkCode, bool isKeyDown);
+        void ResetCopilotKeyState();
+
     public:
         // Display a key by appending a border Control as a child of the panel.
         winrt::Windows::UI::Xaml::Controls::TextBlock AddKeyToLayout(const winrt::Windows::UI::Xaml::Controls::StackPanel& panel, const winrt::hstring& key);
@@ -133,6 +155,9 @@ namespace KBMEditor
 
         // Function to return the currently detected remap key which is displayed on the UI
         DWORD GetDetectedSingleRemapKey();
+
+        // Function to check if Copilot key is currently active
+        bool IsCopilotKeyActive();
 
         // Function which can be used in HandleKeyboardHookEvent before the single key remap event to use the UI and suppress events while the remap window is active.
         Helpers::KeyboardHookDecision DetectSingleRemapKeyUIBackend(LowlevelKeyboardEvent* data);

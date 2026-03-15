@@ -1,0 +1,18 @@
+{
+  "solution": {
+    "path": "PowerToys.slnx",
+    "projects": [
+      "src\\runner\\runner.vcxproj",
+      "src\\modules\\keyboardmanager\\KeyboardManagerEditorLibraryWrapper\\KeyboardManagerEditorLibraryWrapper.vcxproj",
+      "src\\modules\\keyboardmanager\\KeyboardManagerEditorLibrary\\KeyboardManagerEditorLibrary.vcxproj",
+      "src\\modules\\keyboardmanager\\KeyboardManagerEditorUI\\KeyboardManagerEditorUI.csproj",
+      "src\\modules\\keyboardmanager\\KeyboardManagerEditor\\KeyboardManagerEditor.vcxproj",
+      "src\\modules\\keyboardmanager\\KeyboardManagerEngineLibrary\\KeyboardManagerEngineLibrary.vcxproj",
+      "src\\modules\\keyboardmanager\\KeyboardManagerEngine\\KeyboardManagerEngine.vcxproj",
+      "src\\modules\\keyboardmanager\\common\\KeyboardManagerCommon.vcxproj",
+      "src\\modules\\keyboardmanager\\dll\\KeyboardManager.vcxproj",
+      "src\\common\\interop\\ProjectionCommon.vcxproj",
+      "src\\common\\utils\\project.vcxproj"
+    ]
+  }
+}

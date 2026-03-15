@@ -94,6 +94,9 @@ namespace KeyboardManagerConstants
     // Number of key messages required while sending a dummy key event
     inline const size_t DUMMY_KEY_EVENT_SIZE = 2;
 
+    // Timeout in milliseconds for the Copilot key state machine to auto-reset if stuck
+    inline constexpr int CopilotKeySequenceTimeoutMs = 500;
+
     // String constant to represent no activated application in app-specific shortcuts
     inline const std::wstring NoActivatedApp = L"";
 }

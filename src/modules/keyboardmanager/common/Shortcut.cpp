@@ -381,6 +381,15 @@ bool Shortcut::SetKey(const DWORD input)
         }
         winKey = ModifierKey::Both;
     }
+    else if (input == CommonSharedConstants::VK_COPILOT)
+    {
+        // Copilot key is treated as an action key
+        if (actionKey == CommonSharedConstants::VK_COPILOT)
+        {
+            return false;
+        }
+        actionKey = CommonSharedConstants::VK_COPILOT;
+    }
     else if (input == VK_LWIN)
     {
         if (winKey == ModifierKey::Left)
